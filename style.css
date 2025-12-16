@@ -86,22 +86,30 @@ button:hover {
 /* Modal styles */
 .modal {
     position: fixed;
-    z-index: 1;
+    z-index: 100; /* Increased z-index */
     left: 0;
     top: 0;
     width: 100%;
     height: 100%;
     overflow: auto;
     background-color: rgba(0,0,0,0.4);
+    /* Removed flex centering from .modal */
 }
 
 .modal-content {
     background-color: #fefefe;
-    margin: 15% auto;
     padding: 20px;
     border: 1px solid #888;
     width: 80%;
     max-width: 400px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    
+    /* Absolute centering */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
 #tools-palette {
@@ -119,6 +127,7 @@ button:hover {
     justify-content: center;
     align-items: center;
     font-size: 20px;
+    position: relative; /* For context menu positioning */
 }
 
 .tile-item.selected {
@@ -170,28 +179,26 @@ button:hover {
     border-radius: 4px;
 }
 
-#canvas-resize-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 10px; /* Space between rows */
-    margin-top: 10px;
-}
-
-#canvas-resize-panel > div {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-}
-
-#canvas-resize-panel label {
-    flex-basis: 60px; /* Allocate fixed width for labels */
-}
-
-#canvas-resize-panel input[type="number"] {
-    flex-grow: 1; /* Allow input to take remaining space */
-    width: auto; /* Override default width */
-    padding: 5px;
+/* Custom Context Menu styles */
+.context-menu {
+    display: none; /* Hidden by default */
+    position: fixed;
+    background-color: #fff;
     border: 1px solid #ccc;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    z-index: 1000; /* Ensure it's above other elements */
+    min-width: 120px;
     border-radius: 4px;
+    overflow: hidden; /* For rounded corners */
 }
 
+.context-menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #333;
+}
+
+.context-menu-item:hover {
+    background-color: #f0f0f0;
+}

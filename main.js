@@ -24,6 +24,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const canvasHeightInput = document.getElementById('canvas-height');  // Added
     const btnApplyCanvasSize = document.getElementById('btn-apply-canvas-size'); // Added
 
+    // Context menu elements
+    const tileContextMenu = document.getElementById('tile-context-menu');
+    const contextMenuEdit = document.getElementById('context-menu-edit');
+    const contextMenuDelete = document.getElementById('context-menu-delete');
 
     const TILE_SIZE = 32;
     let MAP_WIDTH = 800;
@@ -54,6 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let history = [];
     let historyPointer = -1;
 
+    // Tile editing state
+    let isEditing = false;
+    let editingTile = null;
+    let contextMenuTargetTile = null; // Store tile that was right-clicked
+
     class Palette {
         constructor() {
             this.tiles = [];
@@ -76,6 +85,26 @@ document.addEventListener('DOMContentLoaded', () => {
             this.render();
         }
 
+        deleteTile(tileToDelete) {
+            if (confirm(`Are you sure you want to delete tile "${tileToDelete.name}"?`)) {
+                this.tiles = this.tiles.filter(tile => tile !== tileToDelete);
+                if (this.selectedTile === tileToDelete) {
+                    this.selectedTile = null;
+                }
+                // Also remove this tile from mapData if it exists
+                for (let row = 0; row < MAP_ROWS; row++) {
+                    for (let col = 0; col < MAP_COLS; col++) {
+                        if (mapData[row][col] === tileToDelete) {
+                            mapData[row][col] = null;
+                        }
+                    }
+                }
+                this.render();
+                redrawCanvas(); // Update canvas in case deleted tile was on map
+                saveState();
+            }
+        }
+
         render() {
             toolsPalette.innerHTML = '';
             this.tiles.forEach(tile => {
@@ -87,7 +116,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 tileEl.style.backgroundColor = tile.color;
                 tileEl.textContent = tile.char;
                 tileEl.title = tile.name;
+                
+                // Left-click to select tile
                 tileEl.addEventListener('click', () => this.selectTile(tile));
+                // Right-click to show context menu
+                tileEl.addEventListener('contextmenu', (e) => showTileContextMenu(e, tile));
+                
                 toolsPalette.appendChild(tileEl);
             });
         }
@@ -219,6 +253,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function hideModal() {
         newTileModal.style.display = 'none';
+        isEditing = false;
+        editingTile = null;
+        btnCreateTile.textContent = 'Create Tile';
+        // Reset form inputs
+        document.getElementById('tile-name').value = '';
+        document.getElementById('tile-char').value = '';
+        document.getElementById('tile-color').value = '#ffffff';
+    }
+
+    function editTile(tile) {
+        isEditing = true;
+        editingTile = tile;
+        document.getElementById('tile-name').value = tile.name;
+        document.getElementById('tile-char').value = tile.char;
+        document.getElementById('tile-color').value = tile.color;
+        btnCreateTile.textContent = 'Update Tile';
+        showModal();
     }
 
     function createTile() {
@@ -231,12 +282,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const color = colorInput.value;
 
         if (name && char) {
-            palette.addTile({ name, char, color });
+            if (isEditing && editingTile) {
+                editingTile.name = name;
+                editingTile.char = char;
+                editingTile.color = color;
+                palette.render(); // Re-render palette to show changes
+                redrawCanvas(); // Re-draw canvas to show color/char changes on map
+            } else {
+                palette.addTile({ name, char, color });
+            }
             hideModal();
-            // Reset form
-            nameInput.value = '';
-            charInput.value = '';
-            colorInput.value = '#ffffff';
+            saveState(); // Save state after create or edit
         } else {
             alert('Please fill in all fields.');
         }
@@ -634,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             newVisualScale /= visualZoomFactor; // Zoom out
         }
 
-        // Clamp visualScale to reasonable limits (e.g., 0.1 to 10)
+        // Clamp visualScale to reasonable limits (e.1 to 10)
         newVisualScale = Math.max(0.1, Math.min(newVisualScale, 10.0));
 
         // Calculate new offsets to keep the point under the mouse fixed
@@ -643,6 +699,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         visualScale = newVisualScale;
         canvas.style.transform = `translate(${visualOffsetX}px, ${visualOffsetY}px) scale(${visualScale})`;
+    }
+
+    // --- Custom Tile Context Menu Functions ---
+    function showTileContextMenu(e, tile) {
+        e.preventDefault(); // Prevent browser's default context menu
+        contextMenuTargetTile = tile;
+        tileContextMenu.style.left = `${e.clientX}px`;
+        tileContextMenu.style.top = `${e.clientY}px`;
+        tileContextMenu.style.display = 'block';
+    }
+
+    function hideTileContextMenu() {
+        tileContextMenu.style.display = 'none';
+        contextMenuTargetTile = null;
     }
 
     // Event Listeners
@@ -657,8 +727,29 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('wheel', handleCanvasWheel, { passive: false }); // Add wheel event listener to document
     // Removed canvas.addEventListener('mouseleave', handleCanvasMouseLeave); as mouseup on document handles state reset
     document.addEventListener('contextmenu', (e) => { // Prevent context menu globally for right-click panning
-        if (e.button === 2) {
+        if (e.button === 2 && e.target !== canvas && !e.target.closest('.tile-item')) { // Allow tile-item contextmenu
             e.preventDefault();
+        }
+    });
+
+    // Hide context menu if clicking anywhere else
+    document.addEventListener('mousedown', (e) => {
+        if (!tileContextMenu.contains(e.target)) {
+            hideTileContextMenu();
+        }
+    });
+
+    // Listeners for custom context menu actions
+    contextMenuEdit.addEventListener('click', () => {
+        if (contextMenuTargetTile) {
+            editTile(contextMenuTargetTile);
+            hideTileContextMenu();
+        }
+    });
+    contextMenuDelete.addEventListener('click', () => {
+        if (contextMenuTargetTile) {
+            palette.deleteTile(contextMenuTargetTile);
+            hideTileContextMenu();
         }
     });
 

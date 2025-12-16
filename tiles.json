@@ -2,12 +2,12 @@
     {
         "name": "Wall",
         "char": "#",
-        "color": "#333333"
+        "color": "#555555"
     },
     {
-        "name": "Floor",
-        "char": ".",
-        "color": "#cccccc"
+        "name": "Crate",
+        "char": "X",
+        "color": "#8B4513"
     },
     {
         "name": "Water",
