@@ -9,6 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnToolDraw = document.getElementById('btn-tool-draw');
     const btnToolFill = document.getElementById('btn-tool-fill');
     const btnToolErase = document.getElementById('btn-tool-erase'); // Added
+    const btnToolPolygon = document.getElementById('btn-tool-polygon');
+    const polygonShapeSelection = document.getElementById('polygon-shape-selection'); // Added
+    const btnShapeRectangle = document.getElementById('btn-shape-rectangle');     // Added
+    const btnShapeCircle = document.getElementById('btn-shape-circle');       // Added
     const btnLoad = document.getElementById('btn-load');
     const btnLoadPalette = document.getElementById('btn-load-palette');
     const fileLoader = document.getElementById('file-loader');
@@ -21,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let mapData = Array(MAP_ROWS).fill(null).map(() => Array(MAP_COLS).fill(null));
 
     let currentTool = 'draw'; // 'draw' or 'fill'
+    let currentShape = 'rectangle'; // 'rectangle' or 'circle' - for polygon tool
 
     class Palette {
         constructor() {
@@ -172,10 +177,44 @@ document.addEventListener('DOMContentLoaded', () => {
         redrawCanvas();
     }
 
+    function applyRectangleToMap(startCol, startRow, endCol, endRow, tile) {
+        const minCol = Math.min(startCol, endCol);
+        const maxCol = Math.max(startCol, endCol);
+        const minRow = Math.min(startRow, endRow);
+        const maxRow = Math.max(startRow, endRow);
+
+        for (let row = minRow; row <= maxRow; row++) {
+            for (let col = minCol; col <= maxCol; col++) {
+                if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
+                    mapData[row][col] = tile;
+                }
+            }
+        }
+    }
+
+    function applyCircleToMap(startCol, startRow, endCol, endRow, tile) {
+        const centerX = startCol + (endCol - startCol) / 2;
+        const centerY = startRow + (endRow - startRow) / 2;
+        const radiusX = Math.abs(endCol - startCol) / 2;
+        const radiusY = Math.abs(endRow - startRow) / 2;
+        const radius = Math.max(radiusX, radiusY); // For a perfect circle
+
+        for (let row = 0; row < MAP_ROWS; row++) {
+            for (let col = 0; col < MAP_COLS; col++) {
+                const distance = Math.sqrt(Math.pow(col - centerX, 2) + Math.pow(row - centerY, 2));
+                if (distance <= radius) {
+                    mapData[row][col] = tile;
+                }
+            }
+        }
+    }
+
+
     let isDrawing = false;
+    let startPoint = null; // Added for polygon tool
 
     function handleCanvasMouseDown(e) {
-        if (!palette.selectedTile) return;
+        if (!palette.selectedTile && currentTool !== 'erase') return;
 
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -193,25 +232,91 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (currentTool === 'erase') { // Added erase tool logic
             isDrawing = true;
             eraseOnCanvas(e);
+        } else if (currentTool === 'polygon') { // Added polygon tool logic
+            isDrawing = true;
+            startPoint = { col, row };
         }
     }
 
     function handleCanvasMouseMove(e) {
         if (!isDrawing) return;
 
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const col = Math.floor(x / TILE_SIZE);
+        const row = Math.floor(y / TILE_SIZE);
+
         if (currentTool === 'draw' && palette.selectedTile) {
             drawOnCanvas(e);
-        } else if (currentTool === 'erase') { // Added erase tool logic for mouse move
+        } else if (currentTool === 'erase') {
             eraseOnCanvas(e);
+        } else if (currentTool === 'polygon' && startPoint) { // Preview for polygon tool
+            redrawCanvas(); // Clear canvas and redraw existing map
+            drawTemporaryShape(startPoint.col, startPoint.row, col, row);
         }
     }
 
-    function handleCanvasMouseUp() {
+    // Helper function to draw temporary shapes for preview
+    function drawTemporaryShape(startCol, startRow, endCol, endRow) {
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]); // Dashed line for preview
+
+        const startX = startCol * TILE_SIZE;
+        const startY = startRow * TILE_SIZE;
+        const endX = endCol * TILE_SIZE;
+        const endY = endRow * TILE_SIZE;
+
+        if (currentShape === 'rectangle') {
+            const width = endX - startX + TILE_SIZE;
+            const height = endY - startY + TILE_SIZE;
+            ctx.strokeRect(startX, startY, width, height);
+        } else if (currentShape === 'circle') {
+            const centerX = startX + (endX - startX + TILE_SIZE) / 2;
+            const centerY = startY + (endY - startY + TILE_SIZE) / 2;
+            const radiusX = Math.abs(endX - centerX + TILE_SIZE / 2);
+            const radiusY = Math.abs(endY - centerY + TILE_SIZE / 2);
+            const radius = Math.max(radiusX, radiusY); // For a perfect circle, take the larger radius
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        ctx.setLineDash([]); // Reset line dash
+    }
+
+
+    function handleCanvasMouseUp(e) {
+        if (!isDrawing) return;
+
+        if (currentTool === 'polygon' && startPoint && palette.selectedTile) {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const endCol = Math.floor(x / TILE_SIZE);
+            const endRow = Math.floor(y / TILE_SIZE);
+
+            if (currentShape === 'rectangle') {
+                applyRectangleToMap(startPoint.col, startPoint.row, endCol, endRow, palette.selectedTile);
+            } else if (currentShape === 'circle') {
+                applyCircleToMap(startPoint.col, startPoint.row, endCol, endRow, palette.selectedTile);
+            }
+            redrawCanvas(); // Redraw canvas to show permanent shape
+        }
+
         isDrawing = false;
+        startPoint = null;
     }
 
     function handleCanvasMouseLeave() {
+        if (isDrawing && currentTool === 'polygon') {
+            redrawCanvas(); // Clear temporary shape if polygon tool was active
+        }
         isDrawing = false;
+        startPoint = null;
     }
 
     function drawOnCanvas(e) {
@@ -250,7 +355,21 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTool = tool;
         btnToolDraw.classList.toggle('selected', tool === 'draw');
         btnToolFill.classList.toggle('selected', tool === 'fill');
-        btnToolErase.classList.toggle('selected', tool === 'erase'); // Added
+        btnToolErase.classList.toggle('selected', tool === 'erase');
+        btnToolPolygon.classList.toggle('selected', tool === 'polygon');
+
+        if (tool === 'polygon') {
+            polygonShapeSelection.style.display = 'flex'; // Show shape selection
+            selectShape(currentShape); // Ensure current shape is selected
+        } else {
+            polygonShapeSelection.style.display = 'none'; // Hide shape selection
+        }
+    }
+
+    function selectShape(shape) {
+        currentShape = shape;
+        btnShapeRectangle.classList.toggle('selected', shape === 'rectangle');
+        btnShapeCircle.classList.toggle('selected', shape === 'circle');
     }
 
     function loadTiles(e) {
@@ -282,7 +401,10 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
     btnToolDraw.addEventListener('click', () => selectTool('draw'));
     btnToolFill.addEventListener('click', () => selectTool('fill'));
-    btnToolErase.addEventListener('click', () => selectTool('erase')); // Added event listener for erase tool
+    btnToolErase.addEventListener('click', () => selectTool('erase'));
+    btnToolPolygon.addEventListener('click', () => selectTool('polygon')); // Event listener for polygon tool
+    btnShapeRectangle.addEventListener('click', () => selectShape('rectangle')); // Event listener for rectangle shape
+    btnShapeCircle.addEventListener('click', () => selectShape('circle'));     // Event listener for circle shape
     btnLoad.addEventListener('click', () => fileLoader.click());
     btnLoadPalette.addEventListener('click', () => fileLoader.click());
     fileLoader.addEventListener('change', (e) => loadTiles(e));
