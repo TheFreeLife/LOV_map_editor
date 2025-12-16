@@ -198,23 +198,82 @@ document.addEventListener('DOMContentLoaded', () => {
         const minRow = Math.min(startRow, endRow);
         const maxRow = Math.max(startRow, endRow);
 
-        const centerX = (minCol + maxCol) / 2;
-        const centerY = (minRow + maxRow) / 2;
+        const centerX = Math.floor((minCol + maxCol) / 2);
+        const centerY = Math.floor((minRow + maxRow) / 2);
+        const radius = Math.floor(Math.min(maxCol - minCol, maxRow - minRow) / 2);
 
-        const radiusX = (maxCol - minCol + 1) / 2;
-        const radiusY = (maxRow - minRow + 1) / 2;
+        if (radius <= 0) return;
 
-        for (let row = minRow; row <= maxRow; row++) {
-            for (let col = minCol; col <= maxCol; col++) {
-                // Check if the center of the tile is within the ellipse
-                const normalizedX = (col + 0.5 - centerX) / radiusX;
-                const normalizedY = (row + 0.5 - centerY) / radiusY;
+        // Function to set a tile, with bounds checking
+        const setTile = (col, row) => {
+            if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
+                mapData[row][col] = tile;
+            }
+        };
 
-                if (normalizedX * normalizedX + normalizedY * normalizedY <= 1) {
-                    if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
-                        mapData[row][col] = tile;
-                    }
+        // Midpoint circle algorithm to draw the perimeter and mark points for filling
+        const fillableRows = new Map(); // Map to store min/max columns for each row to fill
+
+        let x = radius;
+        let y = 0;
+        let err = 0;
+
+        while (x >= y) {
+            // Draw points in all 8 octants
+            for (let i = -x; i <= x; i++) {
+                setTile(centerX + i, centerY + y);
+                setTile(centerX + i, centerY - y);
+                if (fillableRows.has(centerY + y)) {
+                    fillableRows.set(centerY + y, {
+                        min: Math.min(fillableRows.get(centerY + y).min, centerX - x),
+                        max: Math.max(fillableRows.get(centerY + y).max, centerX + x)
+                    });
+                } else {
+                    fillableRows.set(centerY + y, { min: centerX - x, max: centerX + x });
                 }
+                if (fillableRows.has(centerY - y)) {
+                    fillableRows.set(centerY - y, {
+                        min: Math.min(fillableRows.get(centerY - y).min, centerX - x),
+                        max: Math.max(fillableRows.get(centerY - y).max, centerX + x)
+                    });
+                } else {
+                    fillableRows.set(centerY - y, { min: centerX - x, max: centerX + x });
+                }
+            }
+            for (let i = -y; i <= y; i++) {
+                setTile(centerX + i, centerY + x);
+                setTile(centerX + i, centerY - x);
+                 if (fillableRows.has(centerY + x)) {
+                    fillableRows.set(centerY + x, {
+                        min: Math.min(fillableRows.get(centerY + x).min, centerX - y),
+                        max: Math.max(fillableRows.get(centerY + x).max, centerX + y)
+                    });
+                } else {
+                    fillableRows.set(centerY + x, { min: centerX - y, max: centerX + y });
+                }
+                if (fillableRows.has(centerY - x)) {
+                    fillableRows.set(centerY - x, {
+                        min: Math.min(fillableRows.get(centerY - x).min, centerX - y),
+                        max: Math.max(fillableRows.get(centerY - x).max, centerX + y)
+                    });
+                } else {
+                    fillableRows.set(centerY - x, { min: centerX - y, max: centerX + y });
+                }
+            }
+
+
+            y++;
+            err += 1 + 2 * y;
+            if (2 * (err - x) + 1 > 0) {
+                x--;
+                err += 1 - 2 * x;
+            }
+        }
+
+        // Fill the interior of the circle
+        for (const [row, { min, max }] of fillableRows) {
+            for (let col = min; col <= max; col++) {
+                setTile(col, row);
             }
         }
     }
@@ -289,13 +348,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const minY = Math.min(startY, endY);
             const maxY = Math.max(startY, endY);
 
-            const centerX = minX + (maxX - minX) / 2;
-            const centerY = minY + (maxY - minY) / 2;
-            const radiusX = (maxX - minX) / 2;
-            const radiusY = (maxY - minY) / 2;
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const radius = Math.min(width, height) / 2;
+
+            const centerX = minX + width / 2 + TILE_SIZE / 2;
+            const centerY = minY + height / 2 + TILE_SIZE / 2;
 
             ctx.beginPath();
-            ctx.ellipse(centerX + TILE_SIZE / 2, centerY + TILE_SIZE / 2, radiusX + TILE_SIZE / 2, radiusY + TILE_SIZE / 2, 0, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, radius + TILE_SIZE / 2, 0, Math.PI * 2);
             ctx.stroke();
         }
 
