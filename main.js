@@ -193,14 +193,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applyCircleToMap(startCol, startRow, endCol, endRow, tile) {
-        const minCol = Math.min(startCol, endCol);
-        const maxCol = Math.max(startCol, endCol);
-        const minRow = Math.min(startRow, endRow);
-        const maxRow = Math.max(startRow, endRow);
+        const centerX = startCol;
+        const centerY = startRow;
 
-        const centerX = Math.floor((minCol + maxCol) / 2);
-        const centerY = Math.floor((minRow + maxRow) / 2);
-        const radius = Math.floor(Math.min(maxCol - minCol, maxRow - minRow) / 2);
+        // Calculate radius based on distance from center to end point
+        const radius = Math.floor(Math.sqrt(Math.pow(endCol - centerX, 2) + Math.pow(endRow - centerY, 2)));
 
         if (radius <= 0) return;
 
@@ -219,48 +216,34 @@ document.addEventListener('DOMContentLoaded', () => {
         let err = 0;
 
         while (x >= y) {
-            // Draw points in all 8 octants
-            for (let i = -x; i <= x; i++) {
-                setTile(centerX + i, centerY + y);
-                setTile(centerX + i, centerY - y);
-                if (fillableRows.has(centerY + y)) {
-                    fillableRows.set(centerY + y, {
-                        min: Math.min(fillableRows.get(centerY + y).min, centerX - x),
-                        max: Math.max(fillableRows.get(centerY + y).max, centerX + x)
-                    });
-                } else {
-                    fillableRows.set(centerY + y, { min: centerX - x, max: centerX + x });
-                }
-                if (fillableRows.has(centerY - y)) {
-                    fillableRows.set(centerY - y, {
-                        min: Math.min(fillableRows.get(centerY - y).min, centerX - x),
-                        max: Math.max(fillableRows.get(centerY - y).max, centerX + x)
-                    });
-                } else {
-                    fillableRows.set(centerY - y, { min: centerX - x, max: centerX + x });
-                }
+            // Store points for filling
+            // Octant 1, 2, 7, 8
+            if (fillableRows.has(centerY + y)) {
+                fillableRows.get(centerY + y).min = Math.min(fillableRows.get(centerY + y).min, centerX - x);
+                fillableRows.get(centerY + y).max = Math.max(fillableRows.get(centerY + y).max, centerX + x);
+            } else {
+                fillableRows.set(centerY + y, { min: centerX - x, max: centerX + x });
             }
-            for (let i = -y; i <= y; i++) {
-                setTile(centerX + i, centerY + x);
-                setTile(centerX + i, centerY - x);
-                 if (fillableRows.has(centerY + x)) {
-                    fillableRows.set(centerY + x, {
-                        min: Math.min(fillableRows.get(centerY + x).min, centerX - y),
-                        max: Math.max(fillableRows.get(centerY + x).max, centerX + y)
-                    });
-                } else {
-                    fillableRows.set(centerY + x, { min: centerX - y, max: centerX + y });
-                }
-                if (fillableRows.has(centerY - x)) {
-                    fillableRows.set(centerY - x, {
-                        min: Math.min(fillableRows.get(centerY - x).min, centerX - y),
-                        max: Math.max(fillableRows.get(centerY - x).max, centerX + y)
-                    });
-                } else {
-                    fillableRows.set(centerY - x, { min: centerX - y, max: centerX + y });
-                }
+            if (fillableRows.has(centerY - y)) {
+                fillableRows.get(centerY - y).min = Math.min(fillableRows.get(centerY - y).min, centerX - x);
+                fillableRows.get(centerY - y).max = Math.max(fillableRows.get(centerY - y).max, centerX + x);
+            } else {
+                fillableRows.set(centerY - y, { min: centerX - x, max: centerX + x });
             }
 
+            // Octant 3, 4, 5, 6
+            if (fillableRows.has(centerY + x)) {
+                fillableRows.get(centerY + x).min = Math.min(fillableRows.get(centerY + x).min, centerX - y);
+                fillableRows.get(centerY + x).max = Math.max(fillableRows.get(centerY + x).max, centerX + y);
+            } else {
+                fillableRows.set(centerY + x, { min: centerX - y, max: centerX + y });
+            }
+            if (fillableRows.has(centerY - x)) {
+                fillableRows.get(centerY - x).min = Math.min(fillableRows.get(centerY - x).min, centerX - y);
+                fillableRows.get(centerY - x).max = Math.max(fillableRows.get(centerY - x).max, centerX + y);
+            } else {
+                fillableRows.set(centerY - x, { min: centerX - y, max: centerX + y });
+            }
 
             y++;
             err += 1 + 2 * y;
@@ -271,8 +254,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Fill the interior of the circle
-        for (const [row, { min, max }] of fillableRows) {
-            for (let col = min; col <= max; col++) {
+        for (const [row, colRange] of fillableRows.entries()) {
+            for (let col = colRange.min; col <= colRange.max; col++) {
                 setTile(col, row);
             }
         }
@@ -343,20 +326,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const height = endY - startY + TILE_SIZE;
             ctx.strokeRect(startX, startY, width, height);
         } else if (currentShape === 'circle') {
-            const minX = Math.min(startX, endX);
-            const maxX = Math.max(startX, endX);
-            const minY = Math.min(startY, endY);
-            const maxY = Math.max(startY, endY);
+            const centerX = startCol * TILE_SIZE + TILE_SIZE / 2;
+            const centerY = startRow * TILE_SIZE + TILE_SIZE / 2;
 
-            const width = maxX - minX;
-            const height = maxY - minY;
-            const radius = Math.min(width, height) / 2;
+            const currentMouseX = endCol * TILE_SIZE + TILE_SIZE / 2;
+            const currentMouseY = endRow * TILE_SIZE + TILE_SIZE / 2;
 
-            const centerX = minX + width / 2 + TILE_SIZE / 2;
-            const centerY = minY + height / 2 + TILE_SIZE / 2;
+            const radius = Math.sqrt(Math.pow(currentMouseX - centerX, 2) + Math.pow(currentMouseY - centerY, 2));
 
             ctx.beginPath();
-            ctx.arc(centerX, centerY, radius + TILE_SIZE / 2, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
             ctx.stroke();
         }
 
