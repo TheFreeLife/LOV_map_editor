@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLoad = document.getElementById('btn-load');
     const btnLoadPalette = document.getElementById('btn-load-palette');
     const fileLoader = document.getElementById('file-loader');
+    const btnClearAll = document.getElementById('btn-clear-all'); // Added Clear All button
+    const btnExportText = document.getElementById('btn-export-text'); // Added Export as Text button
 
     // Canvas resize elements
     const canvasWidthInput = document.getElementById('canvas-width');    // Added
@@ -133,6 +135,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+    }
+
+    // Function to clear all tiles on the canvas
+    function clearAllCanvas() {
+        mapData = Array(MAP_ROWS).fill(null).map(() => Array(MAP_COLS).fill(null));
+        redrawCanvas();
+    }
+
+    // Function to export map data as text
+    function exportMapAsText() {
+        const exportedText = mapData.map(row =>
+            row.map(tile => (tile ? tile.char : '.')).join('')
+        );
+        alert('Copy the following text:\n\n' + JSON.stringify(exportedText, null, 2));
     }
 
     // Draw grid lines
@@ -504,6 +520,8 @@ document.addEventListener('DOMContentLoaded', () => {
     btnLoadPalette.addEventListener('click', () => fileLoader.click());
     fileLoader.addEventListener('change', (e) => loadTiles(e));
     btnApplyCanvasSize.addEventListener('click', resizeCanvas);
+    btnClearAll.addEventListener('click', clearAllCanvas);
+    btnExportText.addEventListener('click', exportMapAsText); // Added event listener for Clear All button
 
 
     // Initial setup
