@@ -195,67 +195,61 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyCircleToMap(startCol, startRow, endCol, endRow, tile) {
         const centerX = startCol;
         const centerY = startRow;
-
-        // Calculate radius based on distance from center to end point
-        const radius = Math.floor(Math.sqrt(Math.pow(endCol - centerX, 2) + Math.pow(endRow - centerY, 2)));
+        const radius = Math.round(Math.sqrt(Math.pow(endCol - centerX, 2) + Math.pow(endRow - centerY, 2)));
 
         if (radius <= 0) return;
 
-        // Function to set a tile, with bounds checking
         const setTile = (col, row) => {
             if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
                 mapData[row][col] = tile;
             }
         };
 
-        // Midpoint circle algorithm to draw the perimeter and mark points for filling
-        const fillableRows = new Map(); // Map to store min/max columns for each row to fill
+        const rowsToFill = new Map(); // Map<row, {minCol, maxCol}>
 
-        let x = radius;
-        let y = 0;
-        let err = 0;
+        const plotPoint = (cx, cy, x, y) => {
+            const points = [
+                { col: cx + x, row: cy + y },
+                { col: cx - x, row: cy + y },
+                { col: cx + x, row: cy - y },
+                { col: cx - x, row: cy - y },
+                { col: cx + y, row: cy + x },
+                { col: cx - y, row: cy + x },
+                { col: cx + y, row: cy - x },
+                { col: cx - y, row: cy - x },
+            ];
 
-        while (x >= y) {
-            // Store points for filling
-            // Octant 1, 2, 7, 8
-            if (fillableRows.has(centerY + y)) {
-                fillableRows.get(centerY + y).min = Math.min(fillableRows.get(centerY + y).min, centerX - x);
-                fillableRows.get(centerY + y).max = Math.max(fillableRows.get(centerY + y).max, centerX + x);
-            } else {
-                fillableRows.set(centerY + y, { min: centerX - x, max: centerX + x });
-            }
-            if (fillableRows.has(centerY - y)) {
-                fillableRows.get(centerY - y).min = Math.min(fillableRows.get(centerY - y).min, centerX - x);
-                fillableRows.get(centerY - y).max = Math.max(fillableRows.get(centerY - y).max, centerX + x);
-            } else {
-                fillableRows.set(centerY - y, { min: centerX - x, max: centerX + x });
-            }
+            points.forEach(p => {
+                const { col, row } = p;
+                if (rowsToFill.has(row)) {
+                    rowsToFill.get(row).minCol = Math.min(rowsToFill.get(row).minCol, col);
+                    rowsToFill.get(row).maxCol = Math.max(rowsToFill.get(row).maxCol, col);
+                } else {
+                    rowsToFill.set(row, { minCol: col, maxCol: col });
+                }
+            });
+        };
 
-            // Octant 3, 4, 5, 6
-            if (fillableRows.has(centerY + x)) {
-                fillableRows.get(centerY + x).min = Math.min(fillableRows.get(centerY + x).min, centerX - y);
-                fillableRows.get(centerY + x).max = Math.max(fillableRows.get(centerY + x).max, centerX + y);
-            } else {
-                fillableRows.set(centerY + x, { min: centerX - y, max: centerX + y });
-            }
-            if (fillableRows.has(centerY - x)) {
-                fillableRows.get(centerY - x).min = Math.min(fillableRows.get(centerY - x).min, centerX - y);
-                fillableRows.get(centerY - x).max = Math.max(fillableRows.get(centerY - x).max, centerX + y);
-            } else {
-                fillableRows.set(centerY - x, { min: centerX - y, max: centerX + y });
-            }
+        let x = 0;
+        let y = radius;
+        let p = 3 - 2 * radius; // Decision parameter
 
-            y++;
-            err += 1 + 2 * y;
-            if (2 * (err - x) + 1 > 0) {
-                x--;
-                err += 1 - 2 * x;
+        plotPoint(centerX, centerY, x, y);
+
+        while (y >= x) {
+            x++;
+            if (p > 0) {
+                y--;
+                p = p + 4 * (x - y) + 10;
+            } else {
+                p = p + 4 * x + 6;
             }
+            plotPoint(centerX, centerY, x, y);
         }
 
         // Fill the interior of the circle
-        for (const [row, colRange] of fillableRows.entries()) {
-            for (let col = colRange.min; col <= colRange.max; col++) {
+        for (let [row, colRange] of rowsToFill.entries()) {
+            for (let col = colRange.minCol; col <= colRange.maxCol; col++) {
                 setTile(col, row);
             }
         }
