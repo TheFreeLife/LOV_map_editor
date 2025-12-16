@@ -39,7 +39,6 @@ body {
     border-right: 1px solid var(--border-color);
     padding: 10px;
     background-color: #f8f8f8;
-    overflow-y: auto;
 }
 
 .sidebar--right {
@@ -131,6 +130,7 @@ button:hover {
     display: flex;
     gap: 10px;
     margin-bottom: 10px;
+    flex-wrap: wrap;
 }
 
 #tool-selection button.selected {
