@@ -193,17 +193,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applyCircleToMap(startCol, startRow, endCol, endRow, tile) {
-        const centerX = startCol + (endCol - startCol) / 2;
-        const centerY = startRow + (endRow - startRow) / 2;
-        const radiusX = Math.abs(endCol - startCol) / 2;
-        const radiusY = Math.abs(endRow - startRow) / 2;
-        const radius = Math.max(radiusX, radiusY); // For a perfect circle
+        const minCol = Math.min(startCol, endCol);
+        const maxCol = Math.max(startCol, endCol);
+        const minRow = Math.min(startRow, endRow);
+        const maxRow = Math.max(startRow, endRow);
 
-        for (let row = 0; row < MAP_ROWS; row++) {
-            for (let col = 0; col < MAP_COLS; col++) {
-                const distance = Math.sqrt(Math.pow(col - centerX, 2) + Math.pow(row - centerY, 2));
-                if (distance <= radius) {
-                    mapData[row][col] = tile;
+        const centerX = (minCol + maxCol) / 2;
+        const centerY = (minRow + maxRow) / 2;
+
+        const radiusX = (maxCol - minCol + 1) / 2;
+        const radiusY = (maxRow - minRow + 1) / 2;
+
+        for (let row = minRow; row <= maxRow; row++) {
+            for (let col = minCol; col <= maxCol; col++) {
+                // Check if the center of the tile is within the ellipse
+                const normalizedX = (col + 0.5 - centerX) / radiusX;
+                const normalizedY = (row + 0.5 - centerY) / radiusY;
+
+                if (normalizedX * normalizedX + normalizedY * normalizedY <= 1) {
+                    if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
+                        mapData[row][col] = tile;
+                    }
                 }
             }
         }
@@ -274,14 +284,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const height = endY - startY + TILE_SIZE;
             ctx.strokeRect(startX, startY, width, height);
         } else if (currentShape === 'circle') {
-            const centerX = startX + (endX - startX + TILE_SIZE) / 2;
-            const centerY = startY + (endY - startY + TILE_SIZE) / 2;
-            const radiusX = Math.abs(endX - centerX + TILE_SIZE / 2);
-            const radiusY = Math.abs(endY - centerY + TILE_SIZE / 2);
-            const radius = Math.max(radiusX, radiusY); // For a perfect circle, take the larger radius
+            const minX = Math.min(startX, endX);
+            const maxX = Math.max(startX, endX);
+            const minY = Math.min(startY, endY);
+            const maxY = Math.max(startY, endY);
+
+            const centerX = minX + (maxX - minX) / 2;
+            const centerY = minY + (maxY - minY) / 2;
+            const radiusX = (maxX - minX) / 2;
+            const radiusY = (maxY - minY) / 2;
 
             ctx.beginPath();
-            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.ellipse(centerX + TILE_SIZE / 2, centerY + TILE_SIZE / 2, radiusX + TILE_SIZE / 2, radiusY + TILE_SIZE / 2, 0, 0, Math.PI * 2);
             ctx.stroke();
         }
 
