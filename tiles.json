@@ -1,0 +1,23 @@
+[
+    {
+        "name": "Wall",
+        "char": "#",
+        "color": "#333333"
+    },
+    {
+        "name": "Floor",
+        "char": ".",
+        "color": "#cccccc"
+    },
+    {
+        "name": "Water",
+        "char": "~",
+        "color": "#0099ff"
+    },
+    {
+        "name": "Grass",
+        "char": "\"",
+        "color": "#66cc33"
+    }
+]
+
