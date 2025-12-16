@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOV Map Editor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="menu-bar">
+        <div class="menu-bar__left">
+            <button id="btn-save">Save</button>
+            <button id="btn-load">Load</button>
+        </div>
+    </header>
+    <main class="editor-container">
+        <aside class="sidebar sidebar--left">
+            <h2>Tools</h2>
+            <div id="tool-selection">
+                <button id="btn-tool-draw"><i class="fas fa-pencil-alt"></i> Pencil</button>
+                <button id="btn-tool-fill"><i class="fas fa-fill-drip"></i> Fill</button>
+                <button id="btn-tool-erase"><i class="fas fa-eraser"></i> Eraser</button>
+            </div>
+            <hr>
+            <div class="palette-header">
+                <h3>Palette</h3>
+                <button id="btn-load-palette">Load TileSet</button>
+            </div>
+            <div id="tools-palette">
+                <!-- Tool items will be added here -->
+            </div>
+            <button id="btn-new-tile">New Tile</button>
+        </aside>
+        <div class="canvas-container">
+            <canvas id="map-canvas"></canvas>
+        </div>
+        <aside class="sidebar sidebar--right">
+            <h2>Properties</h2>
+            <div id="properties-panel">
+                <!-- Selected object properties will be shown here -->
+            </div>
+        </aside>
+    </main>
+
+    <div id="new-tile-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Create New Tile</h3>
+            <label for="tile-name">Name:</label>
+            <input type="text" id="tile-name" name="tile-name"><br><br>
+            <label for="tile-char">Character:</label>
+            <input type="text" id="tile-char" name="tile-char" maxlength="1"><br><br>
+            <label for="tile-color">Color:</label>
+            <input type="color" id="tile-color" name="tile-color" value="#ffffff"><br><br>
+            <button id="btn-create-tile">Create</button>
+            <button id="btn-cancel-tile">Cancel</button>
+        </div>
+    </div>
+
+    <input type="file" id="file-loader" style="display: none;" accept=".json">
+    <script src="main.js"></script>
+</body>
+</html>
