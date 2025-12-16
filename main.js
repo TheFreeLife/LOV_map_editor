@@ -35,16 +35,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTool = 'draw'; // 'draw' or 'fill'
     let currentShape = 'rectangle'; // 'rectangle' or 'circle' - for polygon tool
 
-    // Zoom and pan variables
-    let scale = 1.0;
-    let offsetX = 0;
-    let offsetY = 0;
-    const zoomFactor = 1.1; // How much to zoom in/out per scroll
+    // Visual zoom and pan variables (for the HTML canvas element itself)
+    let visualScale = 1.0; // Controls CSS transform scale
+    let visualOffsetX = 0; // Controls visual pan offset X
+    let visualOffsetY = 0; // Controls visual pan offset Y
+    const visualZoomFactor = 1.1; // How much to zoom in/out per scroll
 
-    // Pan variables
+    // Internal canvas rendering scale (always 1.0 in this model)
+    const internalScale = 1.0; 
+
+    // Pan variables (for mouse dragging)
     let isPanning = false;
-    let lastMouseX = 0;
-    let lastMouseY = 0;
+    let lastClientX = 0;
+    let lastClientY = 0;
 
     // Undo/Redo history
     const MAX_HISTORY_SIZE = 50; // Limit history to prevent excessive memory usage
@@ -124,14 +127,16 @@ document.addEventListener('DOMContentLoaded', () => {
         MAP_ROWS = newMAP_ROWS;
         mapData = newMapData;
 
-        // Update canvas element dimensions
+        // Set canvas drawing buffer to new logical map dimensions
         canvas.width = MAP_WIDTH;
         canvas.height = MAP_HEIGHT;
 
-        // Reset zoom and pan on canvas resize
-        scale = 1.0;
-        offsetX = 0;
-        offsetY = 0;
+        // Reset visual zoom and pan on canvas resize
+        visualScale = 1.0;
+        visualOffsetX = 0;
+        visualOffsetY = 0;
+        canvas.style.transformOrigin = '0 0'; // Top-left origin for transform
+        canvas.style.transform = `scale(${visualScale}) translate(${visualOffsetX}px, ${visualOffsetY}px)`;
 
         redrawCanvas();
         saveState(); // Save state after resize
@@ -139,15 +144,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize canvas
     function setupCanvas() {
+        // Set canvas drawing buffer to logical map dimensions
         canvas.width = MAP_WIDTH;
         canvas.height = MAP_HEIGHT;
+
         canvasWidthInput.value = MAP_COLS; // Initialize input with current tile count
         canvasHeightInput.value = MAP_ROWS; // Initialize input with current tile count
 
-        // Ensure initial zoom/pan state is reset
-        scale = 1.0;
-        offsetX = 0;
-        offsetY = 0;
+        // Ensure initial visual zoom/pan state is reset
+        visualScale = 1.0;
+        visualOffsetX = 0;
+        visualOffsetY = 0;
+        canvas.style.transformOrigin = '0 0'; // Top-left origin for transform
+        canvas.style.transform = `scale(${visualScale}) translate(${visualOffsetX}px, ${visualOffsetY}px)`;
 
         redrawCanvas();
         saveState(); // Save initial state
@@ -156,10 +165,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function redrawCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the entire canvas based on its current dimensions
 
-        ctx.save();
-        ctx.translate(offsetX, offsetY);
-        ctx.scale(scale, scale);
-
+        // No internal transform needed here, as visual scaling is handled by CSS transform on the element
+        // And drawing happens at 1:1 scale on the internal resolution
         drawGrid();
         for (let row = 0; row < MAP_ROWS; row++) {
             for (let col = 0; col < MAP_COLS; col++) {
@@ -169,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-        ctx.restore();
     }
 
     // Function to clear all tiles on the canvas
@@ -190,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Draw grid lines
     function drawGrid() {
         ctx.strokeStyle = '#ccc';
-        ctx.lineWidth = 0.5 / scale; // Adjust line width based on scale
+        ctx.lineWidth = 0.5 / internalScale; // Adjust line width based on internalScale (which is 1.0)
 
         for (let x = 0; x <= MAP_WIDTH; x += TILE_SIZE) {
             ctx.beginPath();
@@ -360,27 +366,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isDrawing = false;
     let startPoint = null; // Added for polygon tool
-    // Removed spacePressed variable as panning will now be handled by right-click
 
     function handleCanvasMouseDown(e) {
         // If right-click, start panning
         if (e.button === 2) { // Right mouse button
             isPanning = true;
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
+            lastClientX = e.clientX;
+            lastClientY = e.clientY;
+            // Change cursor to indicate panning
+            canvas.style.cursor = 'grabbing';
             return; // Don't process other tools if panning
         }
+
+        // Only process drawing/tool logic if mouse is over the canvas element itself
+        if (e.target !== canvas) return;
 
         // Existing logic for left-click tools
         if (!palette.selectedTile && currentTool !== 'erase') return;
 
         const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        // Convert screen coordinates to canvas coordinates
-        const x = (mouseX - offsetX) / scale;
-        const y = (mouseY - offsetY) / scale;
+        const x = (e.clientX - rect.left) / visualScale;
+        const y = (e.clientY - rect.top) / visualScale;
 
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
@@ -403,28 +409,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleCanvasMouseMove(e) {
         if (isPanning) {
-            const dx = e.clientX - lastMouseX;
-            const dy = e.clientY - lastMouseY;
+            const dx = e.clientX - lastClientX;
+            const dy = e.clientY - lastClientY;
 
-            offsetX += dx;
-            offsetY += dy;
+            visualOffsetX += dx;
+            visualOffsetY += dy;
 
-            lastMouseX = e.clientX;
-            lastMouseY = e.clientY;
+            lastClientX = e.clientX;
+            lastClientY = e.clientY;
             
-            redrawCanvas();
+            // Apply updated visual offset to the canvas element
+            canvas.style.transform = `translate(${visualOffsetX}px, ${visualOffsetY}px) scale(${visualScale})`;
             return; // Don't process other tools if panning
         }
 
-        if (!isDrawing) return;
+        // Only process drawing/tool logic if mouse is over the canvas and drawing is active
+        if (e.target !== canvas || !isDrawing) return;
 
         const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        // Convert screen coordinates to canvas coordinates
-        const x = (mouseX - offsetX) / scale;
-        const y = (mouseY - offsetY) / scale;
+        const x = (e.clientX - rect.left) / visualScale;
+        const y = (e.clientY - rect.top) / visualScale;
 
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
@@ -442,8 +446,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper function to draw temporary shapes for preview
     function drawTemporaryShape(startCol, startRow, endCol, endRow) {
         ctx.strokeStyle = 'blue';
-        ctx.lineWidth = 2 / scale; // Adjust line width for zoom
-        ctx.setLineDash([5 / scale, 5 / scale]); // Adjust dash for zoom
+        ctx.lineWidth = 2 / internalScale; // Adjust line width based on internalScale
+        ctx.setLineDash([5 / internalScale, 5 / internalScale]); // Adjust dash based on internalScale
 
         const startX = startCol * TILE_SIZE;
         const startY = startRow * TILE_SIZE;
@@ -473,19 +477,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function handleCanvasMouseUp(e) {
-        isPanning = false; // Reset panning state
+        if (isPanning) {
+            isPanning = false;
+            canvas.style.cursor = 'default'; // Reset cursor
+            return;
+        }
 
+        // Only process drawing/tool logic if drawing is active
         if (!isDrawing) return;
 
         if (currentTool === 'polygon' && startPoint && palette.selectedTile) {
             const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            // Convert screen coordinates to canvas coordinates
-            const x = (mouseX - offsetX) / scale;
-            const y = (mouseY - offsetY) / scale;
-
+            const x = (e.clientX - rect.left) / visualScale;
+            const y = (e.clientY - rect.top) / visualScale;
             const endCol = Math.floor(x / TILE_SIZE);
             const endRow = Math.floor(y / TILE_SIZE);
 
@@ -502,8 +506,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleCanvasMouseLeave() {
-        isPanning = false; // Reset panning state if mouse leaves canvas
-
+        // This function is still useful to reset drawing state if mouse leaves canvas
+        // while a tool (not panning) is active.
         if (isDrawing && currentTool === 'polygon') {
             redrawCanvas(); // Clear temporary shape if polygon tool was active
         }
@@ -615,41 +619,49 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault(); // Prevent page scrolling
 
         const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
+        const mouseX = e.clientX - rect.left; // Mouse position relative to canvas element
         const mouseY = e.clientY - rect.top;
 
-        const canvasX = (mouseX - offsetX) / scale;
-        const canvasY = (mouseY - offsetY) / scale;
+        // Calculate the mouse position relative to the *transformed* canvas origin
+        // This is needed to maintain the "point under cursor" during zoom
+        const oldCanvasX = (mouseX - visualOffsetX) / visualScale;
+        const oldCanvasY = (mouseY - visualOffsetY) / visualScale;
 
-        let newScale = scale;
+        let newVisualScale = visualScale;
         if (e.deltaY < 0) {
-            newScale *= zoomFactor; // Zoom in
+            newVisualScale *= visualZoomFactor; // Zoom in
         } else {
-            newScale /= zoomFactor; // Zoom out
+            newVisualScale /= visualZoomFactor; // Zoom out
         }
 
-        // Clamp scale to reasonable limits (e.g., 0.1 to 10)
-        newScale = Math.max(0.1, Math.min(newScale, 10.0));
+        // Clamp visualScale to reasonable limits (e.g., 0.1 to 10)
+        newVisualScale = Math.max(0.1, Math.min(newVisualScale, 10.0));
 
-        // Adjust offsets to keep the mouse position fixed on the canvas
-        offsetX = mouseX - canvasX * newScale;
-        offsetY = mouseY - canvasY * newScale;
+        // Calculate new offsets to keep the point under the mouse fixed
+        visualOffsetX = mouseX - oldCanvasX * newVisualScale;
+        visualOffsetY = mouseY - oldCanvasY * newVisualScale;
 
-        scale = newScale;
-        redrawCanvas();
+        visualScale = newVisualScale;
+        canvas.style.transform = `translate(${visualOffsetX}px, ${visualOffsetY}px) scale(${visualScale})`;
     }
 
     // Event Listeners
     btnNewTile.addEventListener('click', showModal);
     btnCancelTile.addEventListener('click', hideModal);
     btnCreateTile.addEventListener('click', createTile);
-    canvas.addEventListener('mousedown', handleCanvasMouseDown);
-    canvas.addEventListener('mousemove', handleCanvasMouseMove);
-    canvas.addEventListener('mouseup', handleCanvasMouseUp);
-    canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
-    canvas.addEventListener('wheel', handleCanvasWheel); // Add wheel event listener
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click context menu
-    // Removed keyboard event listeners for spacebar panning
+    
+    // Change mouse event listeners from canvas to document for global interaction
+    document.addEventListener('mousedown', handleCanvasMouseDown);
+    document.addEventListener('mousemove', handleCanvasMouseMove);
+    document.addEventListener('mouseup', handleCanvasMouseUp);
+    document.addEventListener('wheel', handleCanvasWheel, { passive: false }); // Add wheel event listener to document
+    // Removed canvas.addEventListener('mouseleave', handleCanvasMouseLeave); as mouseup on document handles state reset
+    document.addEventListener('contextmenu', (e) => { // Prevent context menu globally for right-click panning
+        if (e.button === 2) {
+            e.preventDefault();
+        }
+    });
+
 
     // Keyboard event listeners for Undo/Redo
     document.addEventListener('keydown', (e) => {
@@ -683,31 +695,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log("Map editor initialized.");
 });
-
-    function handleCanvasWheel(e) {
-        e.preventDefault(); // Prevent page scrolling
-
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        const canvasX = (mouseX - offsetX) / scale;
-        const canvasY = (mouseY - offsetY) / scale;
-
-        let newScale = scale;
-        if (e.deltaY < 0) {
-            newScale *= zoomFactor; // Zoom in
-        } else {
-            newScale /= zoomFactor; // Zoom out
-        }
-
-        // Clamp scale to reasonable limits (e.g., 0.1 to 10)
-        newScale = Math.max(0.1, Math.min(newScale, 10.0));
-
-        // Adjust offsets to keep the mouse position fixed on the canvas
-        offsetX = mouseX - canvasX * newScale;
-        offsetY = mouseY - canvasY * newScale;
-
-        scale = newScale;
-        redrawCanvas();
-    }
