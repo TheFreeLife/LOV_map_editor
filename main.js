@@ -35,6 +35,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTool = 'draw'; // 'draw' or 'fill'
     let currentShape = 'rectangle'; // 'rectangle' or 'circle' - for polygon tool
 
+    // Zoom and pan variables
+    let scale = 1.0;
+    let offsetX = 0;
+    let offsetY = 0;
+    const zoomFactor = 1.1; // How much to zoom in/out per scroll
+
+    // Pan variables
+    let isPanning = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+
+    // Undo/Redo history
+    const MAX_HISTORY_SIZE = 50; // Limit history to prevent excessive memory usage
+    let history = [];
+    let historyPointer = -1;
+
     class Palette {
         constructor() {
             this.tiles = [];
@@ -112,7 +128,13 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = MAP_WIDTH;
         canvas.height = MAP_HEIGHT;
 
+        // Reset zoom and pan on canvas resize
+        scale = 1.0;
+        offsetX = 0;
+        offsetY = 0;
+
         redrawCanvas();
+        saveState(); // Save state after resize
     }
 
     // Initialize canvas
@@ -121,11 +143,23 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.height = MAP_HEIGHT;
         canvasWidthInput.value = MAP_COLS; // Initialize input with current tile count
         canvasHeightInput.value = MAP_ROWS; // Initialize input with current tile count
+
+        // Ensure initial zoom/pan state is reset
+        scale = 1.0;
+        offsetX = 0;
+        offsetY = 0;
+
         redrawCanvas();
+        saveState(); // Save initial state
     }
 
     function redrawCanvas() {
-        ctx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the entire canvas based on its current dimensions
+
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+        ctx.scale(scale, scale);
+
         drawGrid();
         for (let row = 0; row < MAP_ROWS; row++) {
             for (let col = 0; col < MAP_COLS; col++) {
@@ -135,12 +169,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        ctx.restore();
     }
 
     // Function to clear all tiles on the canvas
     function clearAllCanvas() {
         mapData = Array(MAP_ROWS).fill(null).map(() => Array(MAP_COLS).fill(null));
         redrawCanvas();
+        saveState(); // Save state after clearing
     }
 
     // Function to export map data as text
@@ -154,7 +190,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Draw grid lines
     function drawGrid() {
         ctx.strokeStyle = '#ccc';
-        ctx.lineWidth = 0.5;
+        ctx.lineWidth = 0.5 / scale; // Adjust line width based on scale
 
         for (let x = 0; x <= MAP_WIDTH; x += TILE_SIZE) {
             ctx.beginPath();
@@ -238,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         redrawCanvas();
+        saveState(); // Save state after flood fill
     }
 
     function applyRectangleToMap(startCol, startRow, endCol, endRow, tile) {
@@ -253,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
+        saveState(); // Save state after applying rectangle
     }
 
     function applyCircleToMap(startCol, startRow, endCol, endRow, tile) {
@@ -316,31 +354,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTile(col, row);
             }
         }
+        saveState(); // Save state after applying circle
     }
 
 
     let isDrawing = false;
     let startPoint = null; // Added for polygon tool
+    // Removed spacePressed variable as panning will now be handled by right-click
 
     function handleCanvasMouseDown(e) {
+        // If right-click, start panning
+        if (e.button === 2) { // Right mouse button
+            isPanning = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            return; // Don't process other tools if panning
+        }
+
+        // Existing logic for left-click tools
         if (!palette.selectedTile && currentTool !== 'erase') return;
 
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // Convert screen coordinates to canvas coordinates
+        const x = (mouseX - offsetX) / scale;
+        const y = (mouseY - offsetY) / scale;
+
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
 
         if (currentTool === 'draw') {
             isDrawing = true;
-            drawOnCanvas(e);
+            drawOnCanvas(x, y); // Pass transformed coordinates
         } else if (currentTool === 'fill') {
             if (row >= 0 && row < MAP_ROWS && col >= 0 && col < MAP_COLS) {
                 floodFill(col, row, palette.selectedTile);
             }
         } else if (currentTool === 'erase') { // Added erase tool logic
             isDrawing = true;
-            eraseOnCanvas(e);
+            eraseOnCanvas(x, y); // Pass transformed coordinates
         } else if (currentTool === 'polygon') { // Added polygon tool logic
             isDrawing = true;
             startPoint = { col, row };
@@ -348,19 +402,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleCanvasMouseMove(e) {
+        if (isPanning) {
+            const dx = e.clientX - lastMouseX;
+            const dy = e.clientY - lastMouseY;
+
+            offsetX += dx;
+            offsetY += dy;
+
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            
+            redrawCanvas();
+            return; // Don't process other tools if panning
+        }
+
         if (!isDrawing) return;
 
         const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // Convert screen coordinates to canvas coordinates
+        const x = (mouseX - offsetX) / scale;
+        const y = (mouseY - offsetY) / scale;
 
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
 
         if (currentTool === 'draw' && palette.selectedTile) {
-            drawOnCanvas(e);
+            drawOnCanvas(x, y); // Pass transformed coordinates
         } else if (currentTool === 'erase') {
-            eraseOnCanvas(e);
+            eraseOnCanvas(x, y); // Pass transformed coordinates
         } else if (currentTool === 'polygon' && startPoint) { // Preview for polygon tool
             redrawCanvas(); // Clear canvas and redraw existing map
             drawTemporaryShape(startPoint.col, startPoint.row, col, row);
@@ -370,8 +442,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Helper function to draw temporary shapes for preview
     function drawTemporaryShape(startCol, startRow, endCol, endRow) {
         ctx.strokeStyle = 'blue';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]); // Dashed line for preview
+        ctx.lineWidth = 2 / scale; // Adjust line width for zoom
+        ctx.setLineDash([5 / scale, 5 / scale]); // Adjust dash for zoom
 
         const startX = startCol * TILE_SIZE;
         const startY = startRow * TILE_SIZE;
@@ -401,12 +473,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function handleCanvasMouseUp(e) {
+        isPanning = false; // Reset panning state
+
         if (!isDrawing) return;
 
         if (currentTool === 'polygon' && startPoint && palette.selectedTile) {
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            // Convert screen coordinates to canvas coordinates
+            const x = (mouseX - offsetX) / scale;
+            const y = (mouseY - offsetY) / scale;
+
             const endCol = Math.floor(x / TILE_SIZE);
             const endRow = Math.floor(y / TILE_SIZE);
 
@@ -423,6 +502,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleCanvasMouseLeave() {
+        isPanning = false; // Reset panning state if mouse leaves canvas
+
         if (isDrawing && currentTool === 'polygon') {
             redrawCanvas(); // Clear temporary shape if polygon tool was active
         }
@@ -430,11 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startPoint = null;
     }
 
-    function drawOnCanvas(e) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
+    function drawOnCanvas(x, y) {
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
 
@@ -442,15 +519,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (mapData[row][col] !== palette.selectedTile) {
                 mapData[row][col] = palette.selectedTile;
                 redrawCanvas();
+                saveState(); // Save state after drawing
             }
         }
     }
 
-    function eraseOnCanvas(e) { // Added eraseOnCanvas function
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
+    function eraseOnCanvas(x, y) { // Added eraseOnCanvas function
         const col = Math.floor(x / TILE_SIZE);
         const row = Math.floor(y / TILE_SIZE);
 
@@ -458,6 +532,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (mapData[row][col] !== null) { // Only erase if there's a tile
                 mapData[row][col] = null;
                 redrawCanvas();
+                saveState(); // Save state after erasing
             }
         }
     }
@@ -502,6 +577,68 @@ document.addEventListener('DOMContentLoaded', () => {
         reader.readAsText(file);
     }
 
+    // Undo/Redo functions
+    function saveState() {
+        // If historyPointer is not at the end, clear future states
+        if (historyPointer < history.length - 1) {
+            history = history.slice(0, historyPointer + 1);
+        }
+
+        // Add current mapData to history
+        history.push(JSON.parse(JSON.stringify(mapData)));
+        historyPointer++;
+
+        // Trim history if it exceeds MAX_HISTORY_SIZE
+        if (history.length > MAX_HISTORY_SIZE) {
+            history.shift(); // Remove the oldest state
+            historyPointer--;
+        }
+    }
+
+    function undo() {
+        if (historyPointer > 0) {
+            historyPointer--;
+            mapData = JSON.parse(JSON.stringify(history[historyPointer]));
+            redrawCanvas();
+        }
+    }
+
+    function redo() {
+        if (historyPointer < history.length - 1) {
+            historyPointer++;
+            mapData = JSON.parse(JSON.stringify(history[historyPointer]));
+            redrawCanvas();
+        }
+    }
+
+    function handleCanvasWheel(e) {
+        e.preventDefault(); // Prevent page scrolling
+
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const canvasX = (mouseX - offsetX) / scale;
+        const canvasY = (mouseY - offsetY) / scale;
+
+        let newScale = scale;
+        if (e.deltaY < 0) {
+            newScale *= zoomFactor; // Zoom in
+        } else {
+            newScale /= zoomFactor; // Zoom out
+        }
+
+        // Clamp scale to reasonable limits (e.g., 0.1 to 10)
+        newScale = Math.max(0.1, Math.min(newScale, 10.0));
+
+        // Adjust offsets to keep the mouse position fixed on the canvas
+        offsetX = mouseX - canvasX * newScale;
+        offsetY = mouseY - canvasY * newScale;
+
+        scale = newScale;
+        redrawCanvas();
+    }
+
     // Event Listeners
     btnNewTile.addEventListener('click', showModal);
     btnCancelTile.addEventListener('click', hideModal);
@@ -510,6 +647,22 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mousemove', handleCanvasMouseMove);
     canvas.addEventListener('mouseup', handleCanvasMouseUp);
     canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
+    canvas.addEventListener('wheel', handleCanvasWheel); // Add wheel event listener
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault()); // Prevent right-click context menu
+    // Removed keyboard event listeners for spacebar panning
+
+    // Keyboard event listeners for Undo/Redo
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+            e.preventDefault(); // Prevent browser's default undo
+            undo();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+            e.preventDefault(); // Prevent browser's default redo
+            redo();
+        }
+    });
+
     btnToolDraw.addEventListener('click', () => selectTool('draw'));
     btnToolFill.addEventListener('click', () => selectTool('fill'));
     btnToolErase.addEventListener('click', () => selectTool('erase'));
@@ -530,3 +683,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log("Map editor initialized.");
 });
+
+    function handleCanvasWheel(e) {
+        e.preventDefault(); // Prevent page scrolling
+
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const canvasX = (mouseX - offsetX) / scale;
+        const canvasY = (mouseY - offsetY) / scale;
+
+        let newScale = scale;
+        if (e.deltaY < 0) {
+            newScale *= zoomFactor; // Zoom in
+        } else {
+            newScale /= zoomFactor; // Zoom out
+        }
+
+        // Clamp scale to reasonable limits (e.g., 0.1 to 10)
+        newScale = Math.max(0.1, Math.min(newScale, 10.0));
+
+        // Adjust offsets to keep the mouse position fixed on the canvas
+        offsetX = mouseX - canvasX * newScale;
+        offsetY = mouseY - canvasY * newScale;
+
+        scale = newScale;
+        redrawCanvas();
+    }
