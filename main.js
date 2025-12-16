@@ -76,18 +76,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Function to resize the canvas
     function resizeCanvas() {
-        const newWidth = parseInt(canvasWidthInput.value);
-        const newHeight = parseInt(canvasHeightInput.value);
+        const newMAP_COLS = parseInt(canvasWidthInput.value);
+        const newMAP_ROWS = parseInt(canvasHeightInput.value);
 
-        if (isNaN(newWidth) || isNaN(newHeight) || newWidth <= 0 || newHeight <= 0 || newWidth % TILE_SIZE !== 0 || newHeight % TILE_SIZE !== 0) {
-            alert(`Invalid dimensions. Please enter positive numbers that are multiples of ${TILE_SIZE}.`);
-            canvasWidthInput.value = MAP_WIDTH;
-            canvasHeightInput.value = MAP_HEIGHT;
+        if (isNaN(newMAP_COLS) || isNaN(newMAP_ROWS) || newMAP_COLS <= 0 || newMAP_ROWS <= 0) {
+            alert(`Invalid dimensions. Please enter positive numbers for tile counts.`);
+            canvasWidthInput.value = MAP_COLS;
+            canvasHeightInput.value = MAP_ROWS;
             return;
         }
 
-        const newMAP_COLS = newWidth / TILE_SIZE;
-        const newMAP_ROWS = newHeight / TILE_SIZE;
+        const newWidth = newMAP_COLS * TILE_SIZE;
+        const newHeight = newMAP_ROWS * TILE_SIZE;
         
         // Create new mapData array
         const newMapData = Array(newMAP_ROWS).fill(null).map(() => Array(newMAP_COLS).fill(null));
@@ -117,6 +117,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupCanvas() {
         canvas.width = MAP_WIDTH;
         canvas.height = MAP_HEIGHT;
+        canvasWidthInput.value = MAP_COLS; // Initialize input with current tile count
+        canvasHeightInput.value = MAP_ROWS; // Initialize input with current tile count
         redrawCanvas();
     }
 
