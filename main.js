@@ -17,11 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLoadPalette = document.getElementById('btn-load-palette');
     const fileLoader = document.getElementById('file-loader');
 
+    // Canvas resize elements
+    const canvasWidthInput = document.getElementById('canvas-width');    // Added
+    const canvasHeightInput = document.getElementById('canvas-height');  // Added
+    const btnApplyCanvasSize = document.getElementById('btn-apply-canvas-size'); // Added
+
+
     const TILE_SIZE = 32;
-    const MAP_WIDTH = 800;
-    const MAP_HEIGHT = 608;
-    const MAP_COLS = MAP_WIDTH / TILE_SIZE;
-    const MAP_ROWS = MAP_HEIGHT / TILE_SIZE;
+    let MAP_WIDTH = 800;
+    let MAP_HEIGHT = 608;
+    let MAP_COLS = MAP_WIDTH / TILE_SIZE;
+    let MAP_ROWS = MAP_HEIGHT / TILE_SIZE;
     let mapData = Array(MAP_ROWS).fill(null).map(() => Array(MAP_COLS).fill(null));
 
     let currentTool = 'draw'; // 'draw' or 'fill'
@@ -67,6 +73,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const palette = new Palette();
+
+    // Function to resize the canvas
+    function resizeCanvas() {
+        const newWidth = parseInt(canvasWidthInput.value);
+        const newHeight = parseInt(canvasHeightInput.value);
+
+        if (isNaN(newWidth) || isNaN(newHeight) || newWidth <= 0 || newHeight <= 0 || newWidth % TILE_SIZE !== 0 || newHeight % TILE_SIZE !== 0) {
+            alert(`Invalid dimensions. Please enter positive numbers that are multiples of ${TILE_SIZE}.`);
+            canvasWidthInput.value = MAP_WIDTH;
+            canvasHeightInput.value = MAP_HEIGHT;
+            return;
+        }
+
+        const newMAP_COLS = newWidth / TILE_SIZE;
+        const newMAP_ROWS = newHeight / TILE_SIZE;
+        
+        // Create new mapData array
+        const newMapData = Array(newMAP_ROWS).fill(null).map(() => Array(newMAP_COLS).fill(null));
+
+        // Copy existing mapData to the new mapData
+        for (let row = 0; row < Math.min(MAP_ROWS, newMAP_ROWS); row++) {
+            for (let col = 0; col < Math.min(MAP_COLS, newMAP_COLS); col++) {
+                newMapData[row][col] = mapData[row][col];
+            }
+        }
+
+        // Update global variables
+        MAP_WIDTH = newWidth;
+        MAP_HEIGHT = newHeight;
+        MAP_COLS = newMAP_COLS;
+        MAP_ROWS = newMAP_ROWS;
+        mapData = newMapData;
+
+        // Update canvas element dimensions
+        canvas.width = MAP_WIDTH;
+        canvas.height = MAP_HEIGHT;
+
+        redrawCanvas();
+    }
 
     // Initialize canvas
     function setupCanvas() {
@@ -456,6 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnLoad.addEventListener('click', () => fileLoader.click());
     btnLoadPalette.addEventListener('click', () => fileLoader.click());
     fileLoader.addEventListener('change', (e) => loadTiles(e));
+    btnApplyCanvasSize.addEventListener('click', resizeCanvas);
 
 
     // Initial setup

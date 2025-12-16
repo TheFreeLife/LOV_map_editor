@@ -145,3 +145,53 @@ button:hover {
     gap: 10px;
 }
 
+#canvas-resize-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between rows */
+    margin-top: 10px;
+}
+
+#canvas-resize-panel > div {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#canvas-resize-panel label {
+    flex-basis: 60px; /* Allocate fixed width for labels */
+}
+
+#canvas-resize-panel input[type="number"] {
+    flex-grow: 1; /* Allow input to take remaining space */
+    width: auto; /* Override default width */
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+#canvas-resize-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between rows */
+    margin-top: 10px;
+}
+
+#canvas-resize-panel > div {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#canvas-resize-panel label {
+    flex-basis: 60px; /* Allocate fixed width for labels */
+}
+
+#canvas-resize-panel input[type="number"] {
+    flex-grow: 1; /* Allow input to take remaining space */
+    width: auto; /* Override default width */
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
